@@ -14,21 +14,7 @@ export default function HomePage() {
 
   const getWallet = async () => {
     if (window.ethereum) {
-      setEthWallet(window.ethereum);
-    }
-
-    if (ethWallet) {
-      const accounts = await ethWallet.request({ method: "eth_accounts" });
-      handleAccount(accounts);
-    }
-  };
-
-  const handleAccount = (accounts) => {
-    if (accounts && accounts.length > 0) {
-      console.log("Account connected: ", accounts[0]);
-      setAccount(accounts[0]);
-    } else {
-      console.log("No account found");
+      setEthWallet(new ethers.providers.Web3Provider(window.ethereum));
     }
   };
 
@@ -38,46 +24,41 @@ export default function HomePage() {
       return;
     }
 
-    const accounts = await ethWallet.request({ method: "eth_requestAccounts" });
-    handleAccount(accounts);
+    const accounts = await ethWallet.send("eth_requestAccounts");
+    setAccount(accounts[0]);
 
-    // once wallet is set we can get a reference to our deployed contract
+    // Once wallet is set, get a reference to our deployed contract
     getATMContract();
   };
 
-  const getATMContract = () => {
-    const provider = new ethers.providers.Web3Provider(ethWallet);
+  const getATMContract = async () => {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
     const atmContract = new ethers.Contract(deployedContractAddress, contractABI, signer);
     setATM(atmContract);
+
+    // Fetch initial balance and contract address
+    getBalance();
+    fetchContractAddress();
   };
 
   const getBalance = async () => {
     if (atm) {
-      setBalance((await atm.getBalance()).toNumber());
+      const balance = await atm.getBalance();
+      setBalance(balance.toNumber());
     }
   };
 
-  const deposit = async () => {
+  const updateBalance = async (newBalance) => {
     if (atm) {
-      let tx = await atm.deposit(1);
-      await tx.wait();
+      await atm.updateBalance(newBalance);
       getBalance();
     }
   };
 
   const withdraw = async () => {
     if (atm) {
-      let tx = await atm.withdraw(1);
-      await tx.wait();
-      getBalance();
-    }
-  };
-
-  const updateBalance = async (newBalance) => {
-    if (atm) {
-      let tx = await atm.updateBalance(newBalance);
-      await tx.wait();
+      await atm.withdrawAll();
       getBalance();
     }
   };
@@ -90,32 +71,21 @@ export default function HomePage() {
   };
 
   const initUser = () => {
-    // Check to see if user has Metamask
     if (!ethWallet) {
-      return <p style={styles.paragraph}>Please install Metamask in order to use this ATM.</p>;
+      return <p style={styles.paragraph}>Please install MetaMask to use this application.</p>;
     }
 
-    // Check to see if user is connected. If not, connect to their account
     if (!account) {
-      return <button style={styles.button} onClick={connectAccount}>Please connect your Metamask wallet</button>;
-    }
-
-    if (balance === undefined) {
-      getBalance();
-    }
-
-    if (contractAddress === undefined) {
-      fetchContractAddress();
+      return <button style={styles.button} onClick={connectAccount}>Connect MetaMask Wallet</button>;
     }
 
     return (
       <div>
-        <p style={styles.paragraph}>Your Account: {account}</p>
-        <p style={styles.paragraph}>Your Balance: {balance}</p>
+        <p style={styles.paragraph}>Connected Account: {account}</p>
         <p style={styles.paragraph}>Contract Address: {contractAddress}</p>
-        <button style={styles.button} onClick={deposit}>Deposit 1 ETH</button>
-        <button style={styles.button} onClick={withdraw}>Withdraw 1 ETH</button>
-        <button style={styles.button} onClick={() => updateBalance(20)}>Set Balance to 20 ETH</button>
+        <p style={styles.paragraph}>Current Balance: {balance} ETH</p>
+        <button style={styles.button} onClick={() => updateBalance(10)}>Set Balance to 10 ETH</button>
+        <button style={styles.button} onClick={withdraw}>Withdraw All ETH</button>
       </div>
     );
   };
@@ -159,7 +129,7 @@ export default function HomePage() {
 
   return (
     <main style={styles.container}>
-      <header><h1 style={styles.header}>Welcome to Shrey's ATM!</h1></header>
+      <header><h1 style={styles.header}>Welcome to Your Ethereum ATM!</h1></header>
       {initUser()}
     </main>
   );
